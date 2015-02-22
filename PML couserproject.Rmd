@@ -1,0 +1,87 @@
+---
+title: "Predictive Model for Fitness Exercise"
+output: html_document
+---
+
+# Overview
+This is Predictive model for fitness exercise in Practical machine learning course project of Data Science Specification(Couersera). 
+
+This document is supported by R Markdown.
+
+# Basic Setting
+```{r}
+# Load the data and library
+if (! file.exists('./pml-training.csv')) {
+        download.file('http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv', destfile = './pml-training.csv')
+}
+if (! file.exists('./pml-testing.csv')) {
+        download.file('http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv', destfile = './pml-testing.csv')
+}
+training <- read.csv("pml-training.csv", header=TRUE)
+testing <- read.csv("pml-testing.csv", header=TRUE)
+library(caret) ; library(randomForest); library(plyr)
+```
+
+# Cleaning the data
+Remove NA, unrelated col, and nearzero variances
+
+```{r}
+training <-training[,(colSums(is.na(training)) == 0)]
+testing <- testing[,(colSums(is.na(testing)) == 0)]
+col_removed <- c("X","user_name","raw_timestamp_part_1","raw_timestamp_part_2","cvtd_timestamp","new_window")
+trainig <- training[,!(names(training) %in% col_removed)]
+testing <- testing[,!(names(testing) %in% col_removed)]
+nearzvar_training <- nearZeroVar(training, saveMetrics = TRUE)
+nearzvar_testing <- nearZeroVar(testing, saveMetrics = TRUE)
+training <- training[ , nearzvar_training$nzv==FALSE]
+testing <- testing[ , nearzvar_testing$nzv==FALSE]
+```
+
+# Randomforest Modeling
+Develop randomforest model, and show the result
+
+```{r}
+set.seed(1432)
+inTrain = createDataPartition(training$classe, p = 0.75, list=FALSE)
+traninig_train <- training[inTrain,]
+training_test <- training[-inTrain,]
+rfmodel <- randomForest(classe~., data=traninig_train, importance=TRUE)
+rfmodel
+```
+
+# Randomforest Modeling
+Develop randomforest model, and show the result
+
+```{r}
+set.seed(1432)
+inTrain = createDataPartition(training$classe, p = 0.75, list=FALSE)
+traninig_train <- training[inTrain,]
+training_test <- training[-inTrain,]
+rfmodel <- randomForest(classe~., data=traninig_train, importance=TRUE)
+rfmodel
+confusionMatrix(predict(rfmodel,newdata=training_test[,-ncol(training_test)]),training_test$classe)
+```
+
+Confusion Matrix achieved 100% accuracy. 
+Out-Of-Sample Error Rate observed is 0.00%
+
+# Predicting testdata
+
+```{r}
+pml_files = function(x){
+        n = length(x)
+        for(i in 1:n){
+                filename = paste0("problem_id_",i,".txt") 
+                write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+        }
+}
+
+predictionassignmet<- function(){
+        prediction <- predict(rfmodel, testing)
+        print(prediction)
+        answers <- as.vector(prediction)
+        pml_files(answers)
+}
+```
+
+-fin-
