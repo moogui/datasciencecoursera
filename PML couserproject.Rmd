@@ -17,71 +17,56 @@ if (! file.exists('./pml-training.csv')) {
 if (! file.exists('./pml-testing.csv')) {
         download.file('http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv', destfile = './pml-testing.csv')
 }
-training <- read.csv("pml-training.csv", header=TRUE)
-testing <- read.csv("pml-testing.csv", header=TRUE)
-library(caret) ; library(randomForest); library(plyr)
+train <- read.csv("pml-training.csv", header=TRUE, sep=",", na.strings=c("NA",""))
+test <- read.csv("pml-testing.csv", header=TRUE, sep=",", na.strings=c("NA",""))
+library(caret) ; library(randomForest);
+set.seed(1432)
 ```
 
 # Cleaning the data
-Remove NA, unrelated col, and nearzero variances
 
 ```{r}
-training <-training[,(colSums(is.na(training)) == 0)]
-testing <- testing[,(colSums(is.na(testing)) == 0)]
-col_removed <- c("X","user_name","raw_timestamp_part_1","raw_timestamp_part_2","cvtd_timestamp","new_window")
-trainig <- training[,!(names(training) %in% col_removed)]
-testing <- testing[,!(names(testing) %in% col_removed)]
-nearzvar_training <- nearZeroVar(training, saveMetrics = TRUE)
-nearzvar_testing <- nearZeroVar(testing, saveMetrics = TRUE)
-training <- training[ , nearzvar_training$nzv==FALSE]
-testing <- testing[ , nearzvar_testing$nzv==FALSE]
+train <- train[,-1] 
+inTrain = createDataPartition(train$classe, p=0.60, list=FALSE)
+training = train[inTrain,]
+testing = train[-inTrain,]
+retain <- c((colSums(!is.na(training[,-ncol(training)])) >= 0.6*nrow(training)))
+training   <-  training[,retain]
+testing <- testing[,retain]
 ```
 
 # Randomforest Modeling
 Develop randomforest model, and show the result
 
 ```{r}
-set.seed(1432)
-inTrain = createDataPartition(training$classe, p = 0.75, list=FALSE)
-traninig_train <- training[inTrain,]
-training_test <- training[-inTrain,]
-rfmodel <- randomForest(classe~., data=traninig_train, importance=TRUE)
+rfmodel <- randomForest(classe~., data=training, importance=TRUE)
 rfmodel
+conf_matrix<-confusionMatrix(predict(rfmodel,newdata=testing[,-ncol(testing)]),testing$classe)
+conf_matrix
+sum(diag(conf_matrix$table))/sum(conf_matrix$table)
 ```
 
-# Randomforest Modeling
-Develop randomforest model, and show the result
+Confusion Matrix achieved 99.95% accuracy. 
+Out-Of-Sample Error Rate observed is 0.05%
+
+# Predicting testdata & writing the result
 
 ```{r}
-set.seed(1432)
-inTrain = createDataPartition(training$classe, p = 0.75, list=FALSE)
-traninig_train <- training[inTrain,]
-training_test <- training[-inTrain,]
-rfmodel <- randomForest(classe~., data=traninig_train, importance=TRUE)
-rfmodel
-confusionMatrix(predict(rfmodel,newdata=training_test[,-ncol(training_test)]),training_test$classe)
-```
+test <- test[,-1]
+test <- test[ , retain]
+test <- test[,-ncol(test)]
+test <- rbind(training[100, -59] , test) 
+predictions <- predict(rfmodel,newdata=test[-1,])
+print(predictions)
 
-Confusion Matrix achieved 100% accuracy. 
-Out-Of-Sample Error Rate observed is 0.00%
-
-# Predicting testdata
-
-```{r}
-pml_files = function(x){
-        n = length(x)
-        for(i in 1:n){
-                filename = paste0("problem_id_",i,".txt") 
-                write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
-        }
+write_files <- function(x) {
+  n <- length(x)
+  for (i in 1:n) {
+    filename <- paste0("problem_id", i, ".txt")
+    write.table(x[i], file=filename, quote=FALSE, row.names=FALSE,col.names=FALSE)
+  }
 }
-
-predictionassignmet<- function(){
-        prediction <- predict(rfmodel, testing)
-        print(prediction)
-        answers <- as.vector(prediction)
-        pml_files(answers)
-}
+write_files(predictions)
 ```
 
 -fin-
